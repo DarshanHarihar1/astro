@@ -3,16 +3,56 @@ import requests
 import pandas as pd
 from openai import OpenAI
 
-client = OpenAI(api_key='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')
+def main():
+    st.title("Baby Name Generator")
 
-# Load Nakshatra dataset from Excel file
-nakshatra_data = pd.read_excel("astro.xlsx", sheet_name="Sheet1")
+    # User inputs OpenAI API key
+    api_key = st.text_input("Enter your OpenAI API key:")
+    client = OpenAI(api_key=api_key)
 
-# RapidAPI endpoint
+    option = st.radio("Select the method to generate baby names:", ("Nakshatra", "Zodiac"))
+
+    if option == "Nakshatra":
+        st.subheader("Nakshatra Based Name Generator")
+        dob = st.date_input("Date of Birth")
+        tob = st.time_input("Time of Birth")
+        lat = st.number_input("Latitude")
+        lon = st.number_input("Longitude")
+        place = st.text_input("Place of Birth")
+        gender = st.selectbox("Gender", ["Male", "Female"])
+
+        if st.button("Generate Names"):
+            nakshatra = get_nakshatra(dob, tob, lat, lon, gender, place, client)
+            suggested_letters = get_suggested_letters(nakshatra)
+            generated_names = generate_names(suggested_letters, gender, client)
+
+            st.write(f"Generated Names for {nakshatra} Nakshatra:")
+            for i, name in enumerate(generated_names, start=1):
+                if name:  # Check if the name is not empty
+                    st.write(f"{name}")
+
+    elif option == "Zodiac":
+        st.subheader("Zodiac Based Name Generator")
+        day = st.number_input("Enter your birth day (1-31):", min_value=1, max_value=31)
+        month = st.number_input("Enter your birth month (1-12):", min_value=1, max_value=12)
+        zodiac_sign = get_zodiac_sign(day, month)
+        suggested_letters = load_suggested_letters()
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        st.write("Your zodiac sign is:", zodiac_sign)
+        st.write("Suggested letters for naming a newborn baby:", suggested_letters[zodiac_sign])
+            
+        # Generate names and meanings based on suggested letters
+        names_and_meanings = generate_names_and_meanings(suggested_letters[zodiac_sign], gender.lower(), client)
+        st.write("Generated baby names and their meanings:")
+        for i, name_and_meaning in enumerate(names_and_meanings, start=1):
+            if name_and_meaning:  # Check if the name and meaning is not empty
+                name, meaning = name_and_meaning.split(" - ")
+                st.write(f"{name}: {meaning}")
+                
 RAPIDAPI_URL = "https://horoscope-and-panchanga.p.rapidapi.com/zodiac/PanchangaSummary"
 RAPIDAPI_KEY = "695fd6e1c2mshc262e15b91a6425p13791ajsn5ca96f33ad59"
 
-def get_nakshatra(dob, tob, lat, lon, gender, place):
+def get_nakshatra(dob, tob, lat, lon, gender, place, client):
     querystring = {
         "day": dob.day,
         "month": dob.month,
@@ -35,6 +75,9 @@ def get_nakshatra(dob, tob, lat, lon, gender, place):
     return nakshatra_name
 
 def get_suggested_letters(birth_star):
+    # Load Nakshatra dataset from Excel file
+    nakshatra_data = pd.read_excel("astro.xlsx", sheet_name="Sheet1")
+    
     # Check if the birth star exists in the dataset
     if birth_star in nakshatra_data['BS'].values:
         suggested_letters = nakshatra_data[nakshatra_data['BS'] == birth_star]['SL'].iloc[0]
@@ -42,7 +85,7 @@ def get_suggested_letters(birth_star):
     else:
         return ["No suggested letters found for this birth star."]
 
-def generate_names(letters, gender):
+def generate_names(letters, gender, client):
     messages = [
         {"role": "system", "content": f"Generate three Hindu {gender} baby names starting with '{letters}'"},
         {"role": "user", "content": ""}
@@ -90,7 +133,7 @@ def load_suggested_letters():
     df = pd.read_excel('Rashi.xlsx')
     return df.set_index('ZS')['SL'].to_dict()
 
-def generate_names_and_meanings(letters, gender):
+def generate_names_and_meanings(letters, gender, client):
     messages = [
         {"role": "system", "content": f"Generate three Hindu {gender} baby names starting with '{letters}' and their meanings"},
         {"role": "user", "content": ""}
@@ -105,48 +148,6 @@ def generate_names_and_meanings(letters, gender):
     # Extract and return the generated baby names and their meanings
     names_and_meanings = response_message.split("\n")
     return names_and_meanings
-
-def main():
-    st.title("Baby Name Generator")
-
-    option = st.radio("Select the method to generate baby names:", ("Nakshatra", "Zodiac"))
-
-    if option == "Nakshatra":
-        st.subheader("Nakshatra Based Name Generator")
-        dob = st.date_input("Date of Birth")
-        tob = st.time_input("Time of Birth")
-        lat = st.number_input("Latitude")
-        lon = st.number_input("Longitude")
-        place = st.text_input("Place of Birth")
-        gender = st.selectbox("Gender", ["Male", "Female"])
-
-        if st.button("Generate Names"):
-            nakshatra = get_nakshatra(dob, tob, lat, lon, gender, place)
-            suggested_letters = get_suggested_letters(nakshatra)
-            generated_names = generate_names(suggested_letters, gender)
-
-            st.write(f"Generated Names for {nakshatra} Nakshatra:")
-            for i, name in enumerate(generated_names, start=1):
-                if name:  # Check if the name is not empty
-                    st.write(f"{name}")
-
-    elif option == "Zodiac":
-        st.subheader("Zodiac Based Name Generator")
-        day = st.number_input("Enter your birth day (1-31):", min_value=1, max_value=31)
-        month = st.number_input("Enter your birth month (1-12):", min_value=1, max_value=12)
-        zodiac_sign = get_zodiac_sign(day, month)
-        suggested_letters = load_suggested_letters()
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        st.write("Your zodiac sign is:", zodiac_sign)
-        st.write("Suggested letters for naming a newborn baby:", suggested_letters[zodiac_sign])
-            
-        # Generate names and meanings based on suggested letters
-        names_and_meanings = generate_names_and_meanings(suggested_letters[zodiac_sign], gender.lower())
-        st.write("Generated baby names and their meanings:")
-        for i, name_and_meaning in enumerate(names_and_meanings, start=1):
-            if name_and_meaning:  # Check if the name and meaning is not empty
-                name, meaning = name_and_meaning.split(" - ")
-                st.write(f"{name}: {meaning}")
 
 if __name__ == "__main__":
     main()
