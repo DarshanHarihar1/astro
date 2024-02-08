@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from openai import OpenAI
 
-client = OpenAI(api_key='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')
+client = OpenAI(api_key='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')
 
 # Load Nakshatra dataset from Excel file
 nakshatra_data = pd.read_excel("astro.xlsx", sheet_name="Sheet1")
