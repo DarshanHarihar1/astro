@@ -1,56 +1,64 @@
 import streamlit as st
 import requests
 import pandas as pd
+from geopy.geocoders import Nominatim
 from openai import OpenAI
 
 def main():
     st.title("Baby Name Generator")
 
-    # User inputs OpenAI API key
     api_key = st.text_input("Enter your OpenAI API key:")
     client = OpenAI(api_key=api_key)
 
-    option = st.radio("Select the method to generate baby names:", ("Nakshatra", "Zodiac"))
 
-    if option == "Nakshatra":
-        st.subheader("Nakshatra Based Name Generator")
-        dob = st.date_input("Date of Birth")
-        tob = st.time_input("Time of Birth")
-        lat = st.number_input("Latitude")
-        lon = st.number_input("Longitude")
-        place = st.text_input("Place of Birth")
-        gender = st.selectbox("Gender", ["Male", "Female"])
+    gender = st.selectbox("Gender", ["Male", "Female"])
+    dob = st.date_input("Date of Birth")
 
-        if st.button("Generate Names"):
-            nakshatra = get_nakshatra(dob, tob, lat, lon, gender, place, client)
+    place = st.text_input("Place of Birth (Optional)")
+    tob = st.time_input("Time of Birth (Optional)")
+
+
+    st.subheader("Nakshatra Based Name Generator")
+    if place and tob:  
+        latitude, longitude = get_lat_long(place)
+        if latitude is not None and longitude is not None:
+            nakshatra = get_nakshatra(dob, tob, latitude, longitude, gender, place, client)
             suggested_letters = get_suggested_letters(nakshatra)
-            generated_names = generate_names(suggested_letters, gender, client)
-
+            generated_nakshatra_names = generate_names(suggested_letters, gender, client)
             st.write(f"Generated Names for {nakshatra} Nakshatra:")
-            for i, name in enumerate(generated_names, start=1):
+            for i, name in enumerate(generated_nakshatra_names, start=1):
                 if name:  # Check if the name is not empty
                     st.write(f"{name}")
+        else:
+            st.write("Please provide a valid place of birth to generate names based on Nakshatra.")
+    else:
+        st.write("To generate names based on Nakshatra, please provide both place and time of birth.")
 
-    elif option == "Zodiac":
-        st.subheader("Zodiac Based Name Generator")
-        day = st.number_input("Enter your birth day (1-31):", min_value=1, max_value=31)
-        month = st.number_input("Enter your birth month (1-12):", min_value=1, max_value=12)
-        zodiac_sign = get_zodiac_sign(day, month)
-        suggested_letters = load_suggested_letters()
-        gender = st.selectbox("Gender", ["Male", "Female"])
-        st.write("Your zodiac sign is:", zodiac_sign)
-        st.write("Suggested letters for naming a newborn baby:", suggested_letters[zodiac_sign])
-            
-        # Generate names and meanings based on suggested letters
-        names_and_meanings = generate_names_and_meanings(suggested_letters[zodiac_sign], gender.lower(), client)
-        st.write("Generated baby names and their meanings:")
-        for i, name_and_meaning in enumerate(names_and_meanings, start=1):
-            if name_and_meaning:  # Check if the name and meaning is not empty
-                name, meaning = name_and_meaning.split(" - ")
-                st.write(f"{name}: {meaning}")
-                
+    # Zodiac based name generation
+    st.subheader("Zodiac Based Name Generator")
+    zodiac_sign = get_zodiac_sign(dob.day, dob.month)
+    suggested_letters_zodiac = load_suggested_letters()
+    st.write("Your zodiac sign is:", zodiac_sign)
+    st.write("Suggested letters for naming a newborn baby based on Zodiac sign:", suggested_letters_zodiac[zodiac_sign])
+    names_and_meanings = generate_names_and_meanings(suggested_letters_zodiac[zodiac_sign], gender.lower(), client)
+    st.write("Generated baby names and their meanings based on Zodiac sign:")
+    for i, name_and_meaning in enumerate(names_and_meanings, start=1):
+        if name_and_meaning:  # Check if the name and meaning is not empty
+            name = name_and_meaning.split(" - ")
+            st.write(f"{name}: {name}")
+
+
+def get_lat_long(place):
+    geolocator = Nominatim(user_agent="baby_name_generator")
+    location = geolocator.geocode(place)
+    if location:
+        return location.latitude, location.longitude
+    else:
+        return None, None
+
+
 RAPIDAPI_URL = "https://horoscope-and-panchanga.p.rapidapi.com/zodiac/PanchangaSummary"
-RAPIDAPI_KEY = "695fd6e1c2mshc262e15b91a6425p13791ajsn5ca96f33ad59"
+RAPIDAPI_KEY = "4d2e803b8emsh7c65ffaf09bc9f1p1a1c3djsnaf956c55b6b7"
 
 def get_nakshatra(dob, tob, lat, lon, gender, place, client):
     querystring = {
@@ -75,10 +83,8 @@ def get_nakshatra(dob, tob, lat, lon, gender, place, client):
     return nakshatra_name
 
 def get_suggested_letters(birth_star):
-    # Load Nakshatra dataset from Excel file
     nakshatra_data = pd.read_excel("astro.xlsx", sheet_name="Sheet1")
     
-    # Check if the birth star exists in the dataset
     if birth_star in nakshatra_data['BS'].values:
         suggested_letters = nakshatra_data[nakshatra_data['BS'] == birth_star]['SL'].iloc[0]
         return suggested_letters.split(", ")
@@ -87,7 +93,7 @@ def get_suggested_letters(birth_star):
 
 def generate_names(letters, gender, client):
     messages = [
-        {"role": "system", "content": f"Generate three Hindu {gender} baby names starting with '{letters}'"},
+        {"role": "system", "content": f"Generate three Hindu {gender} baby names starting with '{letters}' and their meanings."},
         {"role": "user", "content": ""}
     ]
     response = client.chat.completions.create(
@@ -97,7 +103,7 @@ def generate_names(letters, gender, client):
     )
     response_message = response.choices[0].message.content
     
-    # Extract and return the generated baby names
+
     baby_names = response_message.split("\n")
     return baby_names
 
@@ -145,7 +151,6 @@ def generate_names_and_meanings(letters, gender, client):
     )
     response_message = response.choices[0].message.content
     
-    # Extract and return the generated baby names and their meanings
     names_and_meanings = response_message.split("\n")
     return names_and_meanings
 
