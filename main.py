@@ -45,7 +45,7 @@ def main():
     for i, name_and_meaning in enumerate(names_and_meanings, start=1):
         if name_and_meaning:  # Check if the name and meaning is not empty
             name = name_and_meaning.split(" - ")
-            st.write(f"{name}: {name}")
+            st.write(f"{name}")
 
 
 def get_lat_long(place):
